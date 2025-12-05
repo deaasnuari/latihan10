@@ -1,25 +1,32 @@
+const jwt = require('jsonwebtoken');
+const User = require('../models/user.model');
+
 function authBearer(req, res, next) {
-  const authHeader = req.headers.authorization;
+  const header = req.headers['authorization'];
 
-  // Tidak ada Authorization
-  if (!authHeader) {
-    return res.status(401).json({ message: 'No authorization header' });
+  if (!header || !header.startsWith('Bearer ')) {
+    return res.status(401).json({ message: 'Unauthorized' });
   }
 
-  const [scheme, token] = authHeader.split(' ');
+  const token = header.split(' ')[1];
 
-  // Bukan Bearer
-  if (scheme !== 'Bearer') {
-    return res.status(401).json({ message: 'Bearer token required' });
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Cek user ada atau tidak
+    User.getById(decoded.id, (err, results) => {
+      if (err) return res.status(500).json({ message: err.message });
+      if (results.length === 0) {
+        return res.status(401).json({ message: "Invalid token user" });
+      }
+
+      req.user = results[0];
+      next();
+    });
+
+  } catch (err) {
+    return res.status(401).json({ message: 'Invalid token' });
   }
-
-  // Cek token
-  const VALID_TOKEN = '12345TOKENRAHASIA';
-  if (token !== VALID_TOKEN) {
-    return res.status(403).json({ message: 'Bearer token invalid' });
-  }
-
-  next();
 }
 
 module.exports = { authBearer };
